@@ -1,8 +1,7 @@
-/*
-Declares the module path and Go version; 
-lets the Go toolchain resolve internal imports 
-as github.com/yourusername/chat/...
-*/
+// Declares the module path and Go version; 
+// lets the Go toolchain resolve internal imports 
+// as github.com/yourusername/chat/...
+
 
 module github.com/34codezak/chat
 

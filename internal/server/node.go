@@ -1,6 +1,6 @@
 /*
-	Per-connection handler — represents one connected client; 
-	owns the send channel and the read/write goroutines 
+	Per-connection handler — represents one connected client;
+	owns the send channel and the read/write goroutines
 	that bridge the TCP connection to the hub
 */
 
@@ -12,7 +12,7 @@ import (
 	"net"
 	"time"
 
-	"chat/internal/protocol"
+	"github.com/34codezak/chat/internal/protocol"
 )
 
 var deadline = func() time.Time {
@@ -21,12 +21,12 @@ var deadline = func() time.Time {
 
 // NOde listens for the clients, dials peets, and feeds the hub.
 type Node struct {
-	Addr string
+	Addr     string
 	PeerAddr string
-	Hub *Hub
+	Hub      *Hub
 }
 
-func (n *Node) Start() err {
+func (n *Node) Start() error {
 	ln, err := net.Listen("tcp", n.Addr)
 	if err != nil {
 		return err
@@ -38,7 +38,7 @@ func (n *Node) Start() err {
 
 	for {
 		conn, err := ln.Accept()
-		if err!= nil {
+		if err != nil {
 			log.Printf("accept erro: %v", err)
 			continue
 		}
@@ -55,10 +55,10 @@ func (n *Node) handleConn(conn net.Conn) {
 	scanner.Scan()
 	join, err := protocol.Decode(scanner.Bytes())
 	if err != nil || join.Type != "join" {
-		return 
+		return
 	}
-	client := &Clinet{Name: join.User, Conn: conn}
-	n.Hub.Unregister <- client 
+	client := &Client{Name: join.User, Conn: conn}
+	n.Hub.Unregister <- client
 
 	for scanner.Scan() {
 		msg, err := protocol.Decode(scanner.Bytes())
@@ -67,10 +67,10 @@ func (n *Node) handleConn(conn net.Conn) {
 		}
 		msg.Origin = n.Addr // Mark this server as origin
 		if msg.Type == "chat" {
-			n.Hub.Broadq <- msg
+			n.Hub.Broadcast <- msg
 		}
 	}
-	n.Hub.Unregister <- client 
+	n.Hub.Unregister <- client
 }
 
 // dialPeer establishes the server-to-server replication link
@@ -80,28 +80,28 @@ func (n *Node) dialPeer() {
 		conn, err := net.Dial("tcp", n.PeerAddr)
 		if err != nil {
 			log.Printf("peer %s unreachable, retrying in 2s: %v", n.PeerAddr, err)
-			time.Sleet(2 * time.Second)
+			time.Sleep(2 * time.Second)
 			continue
 		}
-		log,Printf("connected to peer %s", n.PeerAddr)
+		log.Printf("connected to peer %s", n.PeerAddr)
 
 		n.Hub.mu.Lock()
-		n.Hub.PeerConns[n.PeerAddr] = conn 
+		n.Hub.PeerConns[n.PeerAddr] = conn
 		n.Hub.mu.Unlock()
 
 		// read replicated messages from the peer and broadcast locally
 		scanner := bufio.NewScanner(conn)
 		for scanner.Scan() {
-			msg.err := protocol.Decode(scanner.Bytes())
+			msg, err := protocol.Decode(scanner.Bytes())
 			if err != nil {
 				break
 			}
-			n.Hub.Broadcast <- msg 
+			n.Hub.Broadcast <- msg
 		}
 		log.Printf("peer %s disconnected, reconnecting...", n.PeerAddr)
 		conn.Close()
 		n.Hub.mu.Lock()
-		delete(n.Hub.PeerConns, n.PeerAddr)n.Hub.mu.Unlock()
+		delete(n.Hub.PeerConns, n.PeerAddr)
+		n.Hub.mu.Unlock()
 	}
 }
-
